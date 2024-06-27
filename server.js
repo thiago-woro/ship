@@ -48,6 +48,11 @@ const calculateEstimatedDelivery = (shipment) => {
   return '2024-07-01';
 };
 
+
+app.get('status', (req, res) => {
+  res.send('Server is online 🚢🚢🚢');
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
