@@ -15,20 +15,41 @@ app.post("/ai-insights", async (req, res) => {
 	const base_kpi = req.body.base_kpi;
 	const compare_kpi = req.body.compare_kpi;
 
-	try {
-		//const base_kpi_data = await aiInsights(base_kpi);
-		//const compare_kpi_data = await aiInsights(compare_kpi);
+	//log the raw json body received from the client
+	console.log(`Raw request body: ${JSON.stringify(req.body)}`);
 
+	//check if any errors
+	if (req.body.base_kpi === undefined || req.body.compare_kpi === undefined) {
+		return res.status(400).json({ error: "Please provide both base_kpi and compare_kpi" });
+	}
+
+
+	//log the request data received from the client
+	console.log(`Request received for base_kpi: ${base_kpi} and compare_kpi: ${compare_kpi}`);
+
+	//send back error if base_kpi or compare_kpi is empty
+	if (!base_kpi || !compare_kpi) {
+		return res.status(400).json({ error: "Please provide both base_kpi and compare_kpi" });
+	}
+
+	try {
+		console.log(`Request received for base_kpi: ${base_kpi} and compare_kpi: ${compare_kpi}`);
 		const insights = await aiInsights(base_kpi, compare_kpi);
+		console.log(`Insights received: ${insights}`);
 
 		// Send response back to client
-		res.send({base_kpi: base_kpi_data, compare_kpi: compare_kpi_data});
+		res.setHeader("Content-Type", "application/json");
+		res.send({ base_kpi, compare_kpi, insights });
 	} catch (error) {
-		res.status(500).send(error.message);
+		console.error(`Error occurred: ${error}`);
+		res.status(500).json({ error: error.message });
 	}
 });
 
 async function aiInsights(kpi) {
+	console.log("calling openRouter api...");
+	console.log("KPI:", kpi);
+
 	try {
 		const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 			method: "POST",
@@ -42,17 +63,18 @@ async function aiInsights(kpi) {
 					{
 						role: "user",
 						content: `Compare the following two datasets and provide insights:
-					Base KPI: ${JSON.stringify(base_kpi)}
-					Compare KPI: ${JSON.stringify(compare_kpi)}`,
+					Base KPI: ${JSON.stringify(kpi.base_kpi)}
+					Compare KPI: ${JSON.stringify(kpi.compare_kpi)}`,
 					},
 				],
 			}),
 		});
+		console.log("Response received from openRouter API:", response);
 		const data = await response.json();
-		console.log("Response:", data);
+		console.log("JSON data received from openRouter API:", data);
 		return data;
 	} catch (error) {
-		console.error("Error:", error);
+		console.error("Error occurred while calling openRouter API:", error);
 		throw error;
 	}
 }
