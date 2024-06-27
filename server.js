@@ -5,15 +5,12 @@ const app = express();
 app.use(bodyParser.json());
 
 require("dotenv").config();
-let OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY; 
-let aiModel = "mistralai/mistral-7b-instruct:free"   //"openai/gpt-3.5-turbo";
+let OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+let aiModel = "mistralai/mistral-7b-instruct:free"; //"openai/gpt-3.5-turbo";
 
 let uploadData = [];
 
-
-
 app.post("/ai-insights", async (req, res) => {
-
 	// This determines which KPI the client wants to know about
 	const base_kpi = req.body.base_kpi;
 	const compare_kpi = req.body.compare_kpi;
@@ -24,48 +21,41 @@ app.post("/ai-insights", async (req, res) => {
 
 		const insights = await aiInsights(base_kpi, compare_kpi);
 
-
 		// Send response back to client
-		res.send({ base_kpi: base_kpi_data, compare_kpi: compare_kpi_data });
+		res.send({base_kpi: base_kpi_data, compare_kpi: compare_kpi_data});
 	} catch (error) {
 		res.status(500).send(error.message);
 	}
-
 });
-
 
 async function aiInsights(kpi) {
 	try {
 		const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 			method: "POST",
 			headers: {
-			  "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-			  "Content-Type": "application/json"
+				Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-			  "model": aiModel,
-			  "messages": [
-				{
-					role: 'user',
-					content: `Compare the following two datasets and provide insights:
+				model: aiModel,
+				messages: [
+					{
+						role: "user",
+						content: `Compare the following two datasets and provide insights:
 					Base KPI: ${JSON.stringify(base_kpi)}
-					Compare KPI: ${JSON.stringify(compare_kpi)}`
-				  }
-				
-			  ],
-			})
+					Compare KPI: ${JSON.stringify(compare_kpi)}`,
+					},
+				],
+			}),
 		});
 		const data = await response.json();
-		console.log('Response:', data);
+		console.log("Response:", data);
 		return data;
 	} catch (error) {
-		console.error('Error:', error);
+		console.error("Error:", error);
 		throw error;
 	}
 }
-
-
-
 
 const BUBBLE_API_URL = "https://yourcreation.studio/version-test/api/1.1/obj/shipment";
 const BUBBLE_API_TOKEN = "99fc4482ebed8ca24d90cbd25f1af9c7";
