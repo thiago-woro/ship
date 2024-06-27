@@ -46,7 +46,7 @@ app.post("/ai-insights", async (req, res) => {
 	}
 });
 
-async function aiInsights(kpi) {
+async function aiInsights(base_kpi, compare_kpi) {
 	console.log("calling openRouter api...");
 	console.log("KPI:", kpi);
 
@@ -63,8 +63,8 @@ async function aiInsights(kpi) {
 					{
 						role: "user",
 						content: `Compare the following two datasets and provide insights:
-					Base KPI: ${JSON.stringify(kpi.base_kpi)}
-					Compare KPI: ${JSON.stringify(kpi.compare_kpi)}`,
+					Base KPI: ${JSON.stringify(base_kpi)}
+					Compare KPI: ${JSON.stringify(compare_kpi)}`,
 					},
 				],
 			}),
