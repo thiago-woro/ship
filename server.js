@@ -5,82 +5,117 @@ const app = express();
 app.use(bodyParser.json());
 
 require("dotenv").config();
-let OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+let OPENROUTER_API_KEY = process.env.OPENROUTER_KEY;
 let aiModel = "mistralai/mistral-7b-instruct:free"; //"openai/gpt-3.5-turbo";
-
-let uploadData = [];
-
-app.post("/ai-insights", async (req, res) => {
-	// This determines which KPI the client wants to know about
-	const base_kpi = req.body.base_kpi;
-	const compare_kpi = req.body.compare_kpi;
-
-	//log the raw json body received from the client
-	console.log(`Raw request body: ${JSON.stringify(req.body)}`);
-
-	//check if any errors
-	if (req.body.base_kpi === undefined || req.body.compare_kpi === undefined) {
-		return res.status(400).json({ error: "Please provide both base_kpi and compare_kpi" });
-	}
-
-
-	//log the request data received from the client
-	console.log(`Request received for base_kpi: ${base_kpi} and compare_kpi: ${compare_kpi}`);
-
-	//send back error if base_kpi or compare_kpi is empty
-	if (!base_kpi || !compare_kpi) {
-		return res.status(400).json({ error: "Please provide both base_kpi and compare_kpi" });
-	}
-
-	try {
-		console.log(`Request received for base_kpi: ${base_kpi} and compare_kpi: ${compare_kpi}`);
-		const insights = await aiInsights(base_kpi, compare_kpi);
-		console.log(`Insights received: ${insights}`);
-
-		// Send response back to client
-		res.setHeader("Content-Type", "application/json");
-		res.send({ base_kpi, compare_kpi, insights });
-	} catch (error) {
-		console.error(`Error occurred: ${error}`);
-		res.status(500).json({ error: error.message });
-	}
-});
-
-async function aiInsights(base_kpi, compare_kpi) {
-	console.log("calling openRouter api...");
-	console.log("KPI:", kpi);
-
-	try {
-		const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				model: aiModel,
-				messages: [
-					{
-						role: "user",
-						content: `Compare the following two datasets and provide insights:
-					Base KPI: ${JSON.stringify(base_kpi)}
-					Compare KPI: ${JSON.stringify(compare_kpi)}`,
-					},
-				],
-			}),
-		});
-		console.log("Response received from openRouter API:", response);
-		const data = await response.json();
-		console.log("JSON data received from openRouter API:", data);
-		return data;
-	} catch (error) {
-		console.error("Error occurred while calling openRouter API:", error);
-		throw error;
-	}
-}
 
 const BUBBLE_API_URL = "https://yourcreation.studio/version-test/api/1.1/obj/shipment";
 const BUBBLE_API_TOKEN = "99fc4482ebed8ca24d90cbd25f1af9c7";
+
+
+//post route to create ai-isights "response" data type in bubble database.// Define the route to save an insight
+app.post('/save-insight', async (req, res) => {
+    const url = "https://your-creation-studio-20.bubbleapps.io/version-test/api/1.1/wf/store";
+
+    // Extract the message from the request body
+    const { message } = req.body;
+
+    const formData = new FormData();
+    formData.append('data', JSON.stringify({ message }));
+
+    // Correct way to set headers for FormData with axios
+    formData.headers = {
+        'Authorization': `Bearer ${process.env.BUBBLE_API_TOKEN}`,
+        ...formData.getHeaders()
+    };
+
+    try {
+        const response = await axios.post(url, formData, {
+            headers: formData.headers,
+        });
+        res.send(response.data);
+    } catch (error) {
+        if (error.response) {
+            // Server responded with a status other than 2xx
+            res.status(error.response.status).send(error.response.data);
+        } else if (error.request) {
+            // Request was made but no response was received
+            res.status(500).send("No response received from Bubble API");
+        } else {
+            // Something happened in setting up the request that triggered an error
+            res.status(500).send(error.message);
+        }
+    }
+});
+
+
+
+
+app.post('/ai-insights', async (req, res) => {
+	const { base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight } = req.body;
+	console.log('Received request:', req.body);
+	try {
+	  const insights = await aiInsights({
+		base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight
+	  });
+	  console.log('Insights:', insights);
+	  res.send({ insights });
+	} catch (error) {
+	  console.error('Error:', error);
+	  res.status(500).send(error.message);
+	}
+  });
+  
+  async function aiInsights(data) {
+	try {
+	  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: {
+		  'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+		  'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+		  model: aiModel,
+		  messages: [
+			{
+			  role: 'user',
+			  content: `Analyze the following shipment data and provide detailed insights, considering trends, anomalies, and correlations between the different fields.
+			Base KPI: ${data.base_kpi}
+			Compare KPI: ${data.compare_kpi}
+			Additional Context:
+			Origin: ${data.origin}
+			Destination: ${data.destination}
+			Departure: ${data.departure}
+			Arrival: ${data.arrival}
+			Status: ${data.status}
+			Carrier: ${data.carrier}
+			Customs Tax: ${JSON.stringify(data.customs_tax)}
+			Import Tax: ${data.import_tax}
+			Total Weight: ${JSON.stringify(data.total_weight)}
+			Provide insights that include:
+			- Key differences and correlations between ${data.base_kpi} and ${data.compare_kpi}.
+			- Trends observed in the shipment data.
+			- Possible reasons for any patterns or anomalies.
+			- Impact of origin, destination, departure, arrival, status, and carrier on ${data.base_kpi} and ${data.compare_kpi}.
+			- Recommendations based on the comparison and analysis.`
+			}
+		  ]
+		})
+	  });
+	  const responseData = await response.json();
+
+	  console.log('Request Data:', data);
+	  console.log('Response:', responseData);
+	  console.log('Response Data:', responseData);
+	  return responseData;
+
+	} catch (error) {
+	  console.error('Error:', error);
+	  console.error('Error Data:', error);
+	  throw error;
+	}
+  }
+
+
 
 app.get("/fetch-shipments", async (req, res) => {
 	try {
