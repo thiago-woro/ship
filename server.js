@@ -12,6 +12,105 @@ const BUBBLE_API_URL = "https://yourcreation.studio/version-test/api/1.1/obj/shi
 const BUBBLE_API_TOKEN = "99fc4482ebed8ca24d90cbd25f1af9c7";
 
 
+
+
+
+
+
+
+app.post('/ai-insights', async (req, res) => {
+    const { base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight } = req.body;
+    console.log('Received request:', req.body);
+
+    // Send immediate response to the client
+    res.send({ result: 200, message: 'Processing data' });
+
+    // Process the data in the background
+    try {
+        const insights = await aiInsights({
+            base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight
+        });
+        //console.log('Insights:', insights);
+
+        // Save the insights after processing
+        await saveInsight(insights);
+    } catch (error) {
+        console.error('Error:', error);
+    }
+});
+
+async function aiInsights(data) {
+    try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+				tokens: 400,
+                model: aiModel,
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Analyze the following shipment data and provide detailed insights, considering trends, anomalies, and correlations between the different fields.
+                        Base KPI: ${data.base_kpi}
+                        Compare KPI: ${data.compare_kpi}
+                        Additional Context:
+                        Origin: ${data.origin}
+                        Destination: ${data.destination}
+                        Departure: ${data.departure}
+                        Arrival: ${data.arrival}
+                        Status: ${data.status}
+                        Carrier: ${data.carrier}
+                        Customs Tax: ${JSON.stringify(data.customs_tax)}
+                        Import Tax: ${data.import_tax}
+                        Total Weight: ${JSON.stringify(data.total_weight)}
+                        Provide insights that include:
+                        - Key differences and correlations between ${data.base_kpi} and ${data.compare_kpi}.
+                        - Trends observed in the shipment data.
+                        - Possible reasons for any patterns or anomalies.
+                        - Impact of origin, destination, departure, arrival, status, and carrier on ${data.base_kpi} and ${data.compare_kpi}.
+                        - Recommendations based on the comparison and analysis.`
+                    }
+                ]
+            })
+        });
+        const responseData = await response.json();
+        console.log('\n\nRequest Data:', data);
+        console.log('\n\nResponse:', responseData);
+        const insightsResults = responseData.choices[0].message.content;
+        console.log('\n\nInsights results: \n\n', insightsResults);
+		
+
+        return insightsResults;
+    } catch (error) {
+        console.error('Error:', error);
+        throw error;
+    }
+}
+
+async function saveInsight(insights) {
+    const url = "https://your-creation-studio-20.bubbleapps.io/version-test/api/1.1/wf/store";
+
+
+    const formData = {
+        text: insights
+    };
+
+    try {
+        const response = await axios.post(url, formData, {
+            headers: {
+                'Authorization': `Bearer ${process.env.BUBBLE_API_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+        });
+        console.log('Insight saved:', response.data);
+    } catch (error) {
+        console.error('Error saving insight:', error);
+    }
+}
+
 //post route to create ai-isights "response" data type in bubble database.// Define the route to save an insight
 app.post('/save-insight', async (req, res) => {
     const url = "https://your-creation-studio-20.bubbleapps.io/version-test/api/1.1/wf/store";
@@ -50,78 +149,12 @@ app.post('/save-insight', async (req, res) => {
 
 
 
-app.post('/ai-insights', async (req, res) => {
-	const { base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight } = req.body;
-	console.log('Received request:', req.body);
-	try {
-	  const insights = await aiInsights({
-		base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight
-	  });
-	  console.log('Insights:', insights);
-	  res.send({ insights });
-	} catch (error) {
-	  console.error('Error:', error);
-	  res.status(500).send(error.message);
-	}
-  });
-  
-  async function aiInsights(data) {
-	try {
-	  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-		  'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-		  'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-		  model: aiModel,
-		  messages: [
-			{
-			  role: 'user',
-			  content: `Analyze the following shipment data and provide detailed insights, considering trends, anomalies, and correlations between the different fields.
-			Base KPI: ${data.base_kpi}
-			Compare KPI: ${data.compare_kpi}
-			Additional Context:
-			Origin: ${data.origin}
-			Destination: ${data.destination}
-			Departure: ${data.departure}
-			Arrival: ${data.arrival}
-			Status: ${data.status}
-			Carrier: ${data.carrier}
-			Customs Tax: ${JSON.stringify(data.customs_tax)}
-			Import Tax: ${data.import_tax}
-			Total Weight: ${JSON.stringify(data.total_weight)}
-			Provide insights that include:
-			- Key differences and correlations between ${data.base_kpi} and ${data.compare_kpi}.
-			- Trends observed in the shipment data.
-			- Possible reasons for any patterns or anomalies.
-			- Impact of origin, destination, departure, arrival, status, and carrier on ${data.base_kpi} and ${data.compare_kpi}.
-			- Recommendations based on the comparison and analysis.`
-			}
-		  ]
-		})
-	  });
-	  const responseData = await response.json();
-
-	  console.log('Request Data:', data);
-	  console.log('Response:', responseData);
-	  console.log('Response Data:', responseData);
-	  return responseData;
-
-	} catch (error) {
-	  console.error('Error:', error);
-	  console.error('Error Data:', error);
-	  throw error;
-	}
-  }
-
-
 
 app.get("/fetch-shipments", async (req, res) => {
 	try {
 		const response = await axios.get(BUBBLE_API_URL, {
 			headers: {
-				Authorization: `Bearer ${BUBBLE_API_TOKEN}`,
+				Authorization: `Bearer ${process.env.BUBBLE_API_TOKEN}`,
 			},
 		});
 		const shipments = response.data.response.results;
