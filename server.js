@@ -17,15 +17,15 @@ const BUBBLE_API_TOKEN = "99fc4482ebed8ca24d90cbd25f1af9c7";
 
 
 
-
+//Main route used to get AI Insights
 app.post('/ai-insights', async (req, res) => {
     const { base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight } = req.body;
     console.log('Received request:', req.body);
 
-    // Send immediate response to the client
+    // Send immediate response back to bubble, while sending the data to GPT.
     res.send({ result: 200, message: 'Processing data' });
 
-    // Process the data in the background
+    // Fetch AI Insights via OpenRouter API
     try {
         const insights = await aiInsights({
             base_kpi, compare_kpi, origin, destination, departure, arrival, status, carrier, customs_tax, import_tax, total_weight
@@ -39,7 +39,10 @@ app.post('/ai-insights', async (req, res) => {
     }
 });
 
-async function aiInsights(data) {
+
+
+async function aiInsights(data) {   
+    // Fetch AI Insights via OpenRouter API, supports several LLM models.
     try {
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -54,6 +57,28 @@ async function aiInsights(data) {
                     {
                         role: 'user',
                         content: `Analyze the following shipment data and provide detailed insights, considering trends, anomalies, and correlations between the different fields.
+
+						Format the response as a report article, following the following template:
+
+						set the "title" to state what is the range dates, on the Departure dates.
+
+						set the "subtitle", Start by stating how many items were analyzed. 
+
+			
+
+						set bullet points to state:
+
+						-what is the most common origin.
+						-what is the most common destination.
+						-whats the most common route. (from where to where)
+
+						-what is the most common carrier.
+
+						-what is the most common status.
+
+					
+						write a shorter paragraph to summarize the data.
+
                         Base KPI: ${data.base_kpi}
                         Compare KPI: ${data.compare_kpi}
                         Additional Context:
@@ -90,6 +115,7 @@ async function aiInsights(data) {
     }
 }
 
+//Getting the reply back from GPT can take some seconds, so the final response is stored in the database via this function.
 async function saveInsight(insights) {
     const url = "https://your-creation-studio-20.bubbleapps.io/version-test/api/1.1/wf/store";
 
@@ -121,7 +147,6 @@ app.post('/save-insight', async (req, res) => {
     const formData = new FormData();
     formData.append('data', JSON.stringify({ message }));
 
-    // Correct way to set headers for FormData with axios
     formData.headers = {
         'Authorization': `Bearer ${process.env.BUBBLE_API_TOKEN}`,
         ...formData.getHeaders()
